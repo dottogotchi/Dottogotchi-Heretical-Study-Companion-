@@ -1,6 +1,6 @@
 # Dottogotchi-Heretical-Study-Companion-
 A tiny Dottore to support you on your journey through academia...whether you decide to burn it down or not
-The is project was inspired by the Desktop Companion Robot (https://www.instructables.com/Desktop-Companion-Robot/) and 
+This project was inspired by the Desktop Companion Robot (https://www.instructables.com/Desktop-Companion-Robot/) and 
 its code was used as a base for most  of this project.
 
 HARDWARE
