@@ -5,13 +5,12 @@ Desktop Companion Robot
 
   Usage:
     pip install requests pycaw pynput comtypes
-    python doodle_client.py --ip 192.168.0.238
+    python doodle_client.py --ip "YOUR IP"
 
   Activity detection (Windows):
-    - Music/Audio playing  → "music"
-    - Fast typing          → "typing"
-    - Idle > 2 minutes     → "idle"
-    - Default              → "browsing"
+    - Fast typing          → "writting"
+    - browser open         → "Reading"
+    - Default              → "idle"
 ============================================
 """
 
