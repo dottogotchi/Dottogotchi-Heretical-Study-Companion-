@@ -182,7 +182,6 @@ opacity: 0; transition: opacity 0.25s;
 .b1 { background: linear-gradient(135deg, #514969,#2f265b); }
 .b2 { background: linear-gradient(135deg, #c3568b,#9a1d45); }
 .b3 { background: linear-gradient(135deg, #a44ca7,#62377e); }
-.b4 { background: linear-gradient(135deg, #b0adbe,#9e7daf); }
 .ft { margin-top: 36px; color: #444; font-size: 0.75em; }
 </style>
 </head>
@@ -197,7 +196,6 @@ opacity: 0; transition: opacity 0.25s;
 <button class="btn b1" onclick="ss('idle')" data-s="idling">&#128788; Idle</button>
 <button class="btn b2" onclick="ss('write')" data-s="writting">&#9791; Write</button>
 <button class="btn b3" onclick="ss('read')" data-s="reading">&#128781; Read</button>
-<button class="btn b4" onclick="ss('fund')" data-s="fund">&#9901; Give Funding</button>
 </div>
 <p class="ft">v2.0 &middot; ESP32-S3</p>
 <script>
