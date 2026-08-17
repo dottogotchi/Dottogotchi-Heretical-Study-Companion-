@@ -1,16 +1,12 @@
 """
 ============================================
-Desktop Companion Robot
+Dottogotchi Heretical Study Companion
 ============================================
 
-  Usage:
-    pip install requests pycaw pynput comtypes
-    python doodle_client.py --ip "YOUR IP"
-
-  Activity detection (Windows):
-    - Fast typing          → "writting"
-    - browser open         → "Reading"
-    - Default              → "idle"
+  Preboot installs via terminal:
+    pip install requests pycaw pynput comtypes psutil
+Run in terminal;
+    python dottogotchi.py --ip {your IP}
 ============================================
 """
 
@@ -110,11 +106,11 @@ def detect_state(kb_monitor):
     # Priority 1: Fast typing → typing
     kps = kb_monitor.get_kps()
     if kps >= TYPING_KPS_THRESHOLD:
-        return "write"
+        return "writing"
     if is_process_running("chrome.exe"):
-        return "read"
+        return "reading"
     # Default
-    return "idle"
+    return "idling"
 
 # ─── Send State to ESP32 ──────────────────────
 def send_state(ip, state):
@@ -210,6 +206,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
