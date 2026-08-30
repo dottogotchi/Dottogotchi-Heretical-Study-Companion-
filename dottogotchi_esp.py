@@ -38,14 +38,19 @@ alarm_frame=os.listdir(wake_dir)
 
 def numerical_sort_key(write_dir):
     number = ""
-    
     for char in write_dir:
         if char.isdigit():
             number += char
-    
     return int(number) if number else 0
-
 write_sort = sorted(write_frame, key=numerical_sort_key)
+
+def numerical_sort_key(alarm_dir):
+    number = ""
+    for char in alarm_dir:
+        if char.isdigit():
+            number += char
+    return int(number) if number else 0
+alarm_sort = sorted(alarm_frame, key=numerical_sort_key)
 
 #wifi connect
 network_name = os.getenv("CIRCUITPY_WIFI_SSID")
@@ -85,7 +90,7 @@ def state_to_string(state):
     elif state == ActivityState.STATE_IDLE:
         return "idling"
     elif state == ActivityState.STATE_ALARM:
-        return "alarm"
+        return "alarmed"
     return "unknown"
 
 def string_to_state(s):
@@ -95,7 +100,7 @@ def string_to_state(s):
         return ActivityState.STATE_READ
     elif s == "idling":
            return ActivityState.STATE_IDLE
-    elif s == "alarm":
+    elif s == "alarmed":
         return ActivityState.STATE_ALARM
     return ActivityState.STATE_IDLE
 
@@ -317,12 +322,6 @@ def root(request):
   </div>
   <p class="ft">v2.0 &middot; ESP32-S3</p>
   <div class="wrapper">
-    <!-- Replace this with your preferred clock image if needed -->
-    <img
-      class="clock-icon"
-      src="./files/clock.svg"
-      alt="Alarm clock"
-    >
     <h2 class="time">00:00:00 PM</h2>
     <div class="content">
       <div class="column">
@@ -444,7 +443,7 @@ def root(request):
       currentTime.textContent = displayTime;
       /* Check alarm */
       if (alarmTime === `${hour}:${minute} ${ampm}`) {
-        ss('idle'); 
+        setState('alarmed'); 
         if (ringtone.paused) {
           ringtone.currentTime = 0;
           ringtone.play().catch(() => {});
