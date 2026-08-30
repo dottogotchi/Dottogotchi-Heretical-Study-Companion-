@@ -33,6 +33,8 @@ idle_dir = root_path + "/idle"
 idle_frame=os.listdir(idle_dir)
 wake_dir = root_path + "/wake"
 wake_frame=os.listdir(wake_dir)
+alarm_dir = root_path + "/wake"
+alarm_frame=os.listdir(wake_dir)
 
 def numerical_sort_key(write_dir):
     number = ""
@@ -73,7 +75,7 @@ class ActivityState:
     STATE_READ = 0
     STATE_WRITE = 1
     STATE_IDLE = 2
-    STATE_ERORR = 3
+    STATE_ALARM = 3
 
 def state_to_string(state):
     if state == ActivityState.STATE_WRITE:
@@ -82,8 +84,8 @@ def state_to_string(state):
         return "reading"
     elif state == ActivityState.STATE_IDLE:
         return "idling"
-    elif state == ActivityState.STATE_ERROR:
-        return "error"
+    elif state == ActivityState.STATE_ALARM:
+        return "alarm"
     return "unknown"
 
 def string_to_state(s):
@@ -93,8 +95,8 @@ def string_to_state(s):
         return ActivityState.STATE_READ
     elif s == "idling":
            return ActivityState.STATE_IDLE
-    elif s == "error":
-        return ActivityState.STATE_ERROR
+    elif s == "alarm":
+        return ActivityState.STATE_ALARM
     return ActivityState.STATE_IDLE
 
 def parse_state_native(text):
@@ -122,113 +124,370 @@ server.start(str(wifi.radio.ipv4_address))
 def dotto_image(request):
     with open("/dottos/dottohtml.jpg", "rb") as f:
         image = f.read()
-
     return Response(
         request,
         image,
         content_type="image/jpeg"
     )
-
 @server.route("/", GET)
 def root(request):
     return Response(
     request,
 #html code for interface
     """
-<html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dottogotchi</title>
-<style>
-* { margin:0; padding:0; box-sizing:border-box; }
-body {
-font-family: 'Segoe UI', system-ui, sans-serif;
-background-image: url('/dottos/dottohtml.jpg');
-color: #fff; min-height: 100vh;
-display: flex; flex-direction: column;
-align-items: center; padding: 30px 20px;
-}
-h1 {
-font-size: 2.4em; margin-bottom: 6px;
-background: linear-gradient(90deg, #d9b3d9, #bb6791);
--webkit-background-clip: text; -webkit-text-fill-color: transparent;
-}
-.sub { color: #dfb1dc; margin-bottom: 28px; font-size: 0.9em; letter-spacing: 0.5px; }
-.card {
-background: rgba(255,255,255,0.06);
-backdrop-filter: blur(12px);
-border: 1px solid rgba(255,255,255,0.1);
-border-radius: 18px; padding: 22px 32px;
-margin-bottom: 28px; text-align: center;
-min-width: 280px; transition: all 0.3s ease;
-}
-.card:hover { border-color: rgba(255,255,255,0.2); }
-.lbl { color: #dfb1dc; font-size: 0.75em; text-transform: uppercase; letter-spacing: 2px; }
-.val {
-font-size: 2em; font-weight: 700; margin-top: 6px;
-background: linear-gradient(90deg, #d9b3d9, #bb6791);
--webkit-background-clip: text; -webkit-text-fill-color: transparent;
-}
-.grid {
-display: grid;
-grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-gap: 10px; max-width: 580px; width: 100%;
-}
-.btn {
-padding: 14px 8px; border: none; border-radius: 14px;
-font-size: 0.95em; font-weight: 600; cursor: pointer;
-transition: all 0.25s cubic-bezier(.4,0,.2,1); color: #fff;
-position: relative; overflow: hidden;
-}
-.btn::after {
-content: ''; position: absolute; inset: 0;
-background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent);
-opacity: 0; transition: opacity 0.25s;
-}
-.btn:hover { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(0,0,0,0.4); }
-.btn:hover::after { opacity: 1; }
-.btn:active { transform: translateY(-1px); }
-.btn.active { box-shadow: 0 0 0 2px #fff, 0 8px 25px rgba(0,0,0,0.4); }
-.b1 { background: linear-gradient(135deg, #514969,#2f265b); }
-.b2 { background: linear-gradient(135deg, #c3568b,#9a1d45); }
-.b3 { background: linear-gradient(135deg, #a44ca7,#62377e); }
-.b4 { background: linear-gradient(135deg, #b0adbe,#9e7daf); }
-.ft { margin-top: 36px; color: #444; font-size: 0.75em; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dottogotchi</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      color: #fff;
+      min-height: 100vh;
+      padding: 30px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background:
+        url("/dottos/dottohtml.jpg") center / cover fixed no-repeat;
+    }
+    h1 {
+      font-size: 2.4em;
+      margin-bottom: 6px;
+      background: linear-gradient(90deg, #ffc4e1, #d94582);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    h2 {
+      font-size: 2.4em;
+      margin-bottom: 6px;
+      background: linear-gradient(90deg, #ffc4e1, #d94582);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .sub {
+      color: #dfb1dc;
+      margin-bottom: 28px;
+      font-size: 0.9em;
+      letter-spacing: 0.5px;
+    }
+    .card {
+      background: rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 18px;
+      padding: 22px 32px;
+      margin-bottom: 28px;
+      text-align: center;
+      min-width: 280px;
+      transition: all 0.3s ease;
+    }
+    .card:hover {
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+    .lbl {
+      color: #dfb1dc;
+      font-size: 0.75em;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+    .val {
+      font-size: 2em;
+      font-weight: 700;
+      margin-top: 6px;
+      background: linear-gradient(90deg,#ffc4e1, #d94582);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .ft {
+      color: #dfb1dc;
+      font-size: 0.75em;
+      margin-top: 5px;
+      margin-bottom: 20px;
+    }
+    /* Alarm clock */
+    .wrapper {
+      width: 440px;
+      max-width: 100%;
+      padding: 30px 30px 38px;
+      background:#514969;
+      border-radius: 50px;
+      border-color: #706896;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    }
+    .clock-icon {
+      width: 103px;
+      max-width: 100%;
+      margin-bottom: 10px;
+    }
+    .wrapper .time {
+      font-size: 38px;
+      font-weight: 500;
+      margin: 20px 0 30px;
+    }
+    .content {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .content.disable {
+      cursor: no-drop;
+    }
+    .content .column {
+      padding: 0 10px;
+      border-radius: 5px;
+      border: 1px solid #bfbfbf;
+      width: calc(100% / 3 - 5px);
+    }
+    .content.disable .column {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+    .column select {
+      width: 100%;
+      height: 53px;
+      border: none;
+      outline: none;
+      background: transparent;
+      color:#ffc4e1;
+      font-size: 19px;
+    }
+    .column select option {
+      color: #222;
+      background:#fff;
+    }
+    .wrapper button {
+      width: 100%;
+      border: none;
+      outline: none;
+      color:#FFEDF7;
+      cursor: pointer;
+      font-size: 20px;
+      padding: 17px 0;
+      margin-top: 20px;
+      border-radius: 5px;
+      background: linear-gradient(90deg,#ffc4e1, #d94582);
+      transition: background 0.2s ease;
+    }
+    .wrapper button:hover {
+      background: #f276aa;
+    }
+    .wrapper button:active {
+      transform: scale(0.99);
+    }
+    @media (max-width: 480px) {
+      body {
+        padding: 20px 10px;
+      }
+      h1 {
+        font-size: 2em;
+      }
+      .wrapper {
+        padding: 25px 20px 30px;
+      }
+      .wrapper .time {
+        font-size: 30px;
+      }
+      .content .column {
+        padding: 0 6px;
+      }
+      .column select {
+        font-size: 16px;
+      }
+    }
+  </style>
 </head>
 <body>
-<h1>Dottogotchi</h1>
-<p class="sub">Heretical Study Companion</p>
-<div class="card">
-<div class="lbl">Dotto is</div>
-<div class="val" id="cs">...</div>
-</div>
-<div class="grid">
-<button class="btn b1" onclick="ss('idle')" data-s="idling">&#128788; Idle</button>
-<button class="btn b2" onclick="ss('writing')" data-s="writing">&#9791; Writting</button>
-<button class="btn b3" onclick="ss('read')" data-s="reading">&#128781; Reading</button>
-<button class="btn b4" onclick="ss('fund')" data-s="fund">&#9901; Give Funding</button>
-</div>
-<p class="ft">v2.0 &middot; ESP32-S3</p>
-<script>
-let cur='';
-function hl(s){
-document.querySelectorAll('.btn').forEach(b=>b.classList.toggle('active',b.dataset.s===s));
-}
-function ss(s){
-fetch('/state',{method:'POST',headers:{'Content-Type':'application/json'},
-body:JSON.stringify({state:s})}).then(r=>r.json()).then(d=>{
-cur=d.state||s; document.getElementById('cs').textContent=cur; hl(cur);
-}).catch(()=>{});
-}
-function gs(){
-fetch('/status').then(r=>r.json()).then(d=>{
-cur=d.state||'?'; document.getElementById('cs').textContent=cur; hl(cur);
-}).catch(()=>{});
-}
-gs(); setInterval(gs,3000);
-</script>
+  <h1>Dottogotchi</h1>
+  <p class="sub">Heretical Study Companion</p>
+  <div class="card">
+    <div class="lbl">Dottore is</div>
+    <div class="val" id="cs">...</div>
+  </div>
+  <p class="ft">v2.0 &middot; ESP32-S3</p>
+  <div class="wrapper">
+    <!-- Replace this with your preferred clock image if needed -->
+    <img
+      class="clock-icon"
+      src="./files/clock.svg"
+      alt="Alarm clock"
+    >
+    <h2 class="time">00:00:00 PM</h2>
+    <div class="content">
+      <div class="column">
+        <select id="hour">
+          <option value="Hour" selected disabled hidden>Hour</option>
+        </select>
+      </div>
+      <div class="column">
+        <select id="minute">
+          <option value="Minute" selected disabled hidden>Minute</option>
+        </select>
+      </div>
+      <div class="column">
+        <select id="ampm">
+          <option value="AM/PM" selected disabled hidden>AM/PM</option>
+        </select>
+      </div>
+    </div>
+    <button id="setAlarmBtn">Set Alarm</button>
+  </div>
+  <script>
+    /* -----------------------------
+       Dottogotchi ESP32 state
+    ----------------------------- */
+    let cur = "";
+    function highlightState(state) {
+      // Optional hook for your existing UI.
+      // Define hl() elsewhere if you want visual state changes.
+      if (typeof hl === "function") {
+        hl(state);
+      }
+    }
+    function setState(state) {
+      fetch("/state", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ state: state })
+      })
+      .then(response => response.json())
+      .then(data => {
+        cur = data.state || state;
+        document.getElementById("cs").textContent = cur;
+        highlightState(cur);
+      })
+      .catch(() => {});
+    }
+    function getState() {
+      fetch("/status")
+        .then(response => response.json())
+        .then(data => {
+          cur = data.state || "?";
+          document.getElementById("cs").textContent = cur;
+          highlightState(cur);
+        })
+        .catch(() => {});
+    }
+    getState();
+    setInterval(getState, 3000);
+    /* -----------------------------
+       Alarm clock
+    ----------------------------- */
+    const currentTime = document.querySelector(".time");
+    const content = document.querySelector(".content");
+    const selectMenu = document.querySelectorAll("select");
+    const setAlarmBtn = document.querySelector("#setAlarmBtn");
+    let alarmTime = "";
+    let isAlarmSet = false;
+    /* -----------------------------
+       Populate hours
+    ----------------------------- */
+    for (let i = 12; i >= 1; i--) {
+      const hour = i < 10 ? `0${i}` : i;
+      const option = document.createElement("option");
+      option.value = hour;
+      option.textContent = hour;
+      selectMenu[0].appendChild(option);
+    }
+    /* -----------------------------
+       Populate minutes
+    ----------------------------- */
+    for (let i = 59; i >= 0; i--) {
+      const minute = i < 10 ? `0${i}` : i;
+      const option = document.createElement("option");
+      option.value = minute;
+      option.textContent = minute;
+      selectMenu[1].appendChild(option);
+    }
+    /* -----------------------------
+       Populate AM / PM
+    ----------------------------- */
+    ["AM", "PM"].forEach(ampm => {
+      const option = document.createElement("option");
+      option.value = ampm;
+      option.textContent = ampm;
+      selectMenu[2].appendChild(option);
+    });
+    /* -----------------------------
+       Update clock
+    ----------------------------- */
+    function updateClock() {
+      const date = new Date();
+      let h = date.getHours();
+      const m = date.getMinutes();
+      const s = date.getSeconds();
+      let ampm = "AM";
+      if (h >= 12) {
+        ampm = "PM";
+      }
+      h = h % 12;
+      if (h === 0) {
+        h = 12;
+      }
+      const hour = h < 10 ? `0${h}` : h;
+      const minute = m < 10 ? `0${m}` : m;
+      const second = s < 10 ? `0${s}` : s;
+      const displayTime = `${hour}:${minute}:${second} ${ampm}`;
+      currentTime.textContent = displayTime;
+      /* Check alarm */
+      if (alarmTime === `${hour}:${minute} ${ampm}`) {
+        ss('idle'); 
+        if (ringtone.paused) {
+          ringtone.currentTime = 0;
+          ringtone.play().catch(() => {});
+        }
+      }
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+
+    /* -----------------------------
+       Set / Clear alarm
+    ----------------------------- */
+    function setAlarm() {
+      /* Clear existing alarm */
+      if (isAlarmSet) {
+        alarmTime = "";
+        ringtone.pause();
+        ringtone.currentTime = 0;
+        content.classList.remove("disable");
+        setAlarmBtn.textContent = "Set Alarm";
+        isAlarmSet = false;
+        return;
+      }
+      const hour = selectMenu[0].value;
+      const minute = selectMenu[1].value;
+      const ampm = selectMenu[2].value;
+
+      /* Validate */
+      if (
+        hour === "Hour" ||
+        minute === "Minute" ||
+        ampm === "AM/PM"
+      ) {
+        alert("Please, select a valid time to set Alarm!");
+        return;
+      }
+      alarmTime = `${hour}:${minute} ${ampm}`;
+      isAlarmSet = true;
+      content.classList.add("disable");
+      setAlarmBtn.textContent = "Clear Alarm";
+    }
+    setAlarmBtn.addEventListener("click", setAlarm);
+  </script>
 </body>
 </html>
 """,
@@ -318,7 +577,6 @@ while True:
     if current_state == ActivityState.STATE_WRITE:
         frames = write_sort
         folder = write_dir
-
     elif current_state == ActivityState.STATE_READ:
         if read_loop_mode:
             frames = readl_frame
@@ -330,9 +588,9 @@ while True:
         frames = idle_frame
         folder = idle_dir
     
-    elif current_state == ActivityState.STATE_ERROR:
-        frames = error_frame
-        folder = error_dir
+    elif current_state == ActivityState.STATE_ALARM:
+        frames = alarm_frame
+        folder = alarm_dir
 
 
     filename = folder + "/" + frames[frame_index]
