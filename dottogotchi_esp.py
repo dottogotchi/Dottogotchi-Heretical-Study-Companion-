@@ -17,9 +17,11 @@ import wifi
 import time
 import json
 import gc
+import asyncio
+from buzzer_music.player import MusicPlayer
+
 #display reset
 displayio.release_displays()
-
 #directories
 root_path = '/dottos'
 folders = ['wake','write','read','read_loop']
@@ -36,6 +38,7 @@ wake_frame=os.listdir(wake_dir)
 alarm_dir = root_path + "/wake"
 alarm_frame=os.listdir(wake_dir)
 
+#frame sorting
 def numerical_sort_key(write_dir):
     number = ""
     for char in write_dir:
@@ -43,7 +46,6 @@ def numerical_sort_key(write_dir):
             number += char
     return int(number) if number else 0
 write_sort = sorted(write_frame, key=numerical_sort_key)
-
 def numerical_sort_key(alarm_dir):
     number = ""
     for char in alarm_dir:
@@ -51,6 +53,44 @@ def numerical_sort_key(alarm_dir):
             number += char
     return int(number) if number else 0
 alarm_sort = sorted(alarm_frame, key=numerical_sort_key)
+
+#music
+FOUR_UNSPEAKABLES=
+"""
+2.00 C#6 2 42;
+3.00 C#6 1 42;
+4.00 C#6 1 42;
+4.75 C#6 0.75 42;
+5.50 C#6 0.75 42;
+6.00 C#6 0.5 42;
+14.00 C6 8 42;
+16.00 C#6 2 42;
+17.00 C#6 1 42;
+18.00 C#6 1 42;
+18.75 G6 0.75 42;
+19.50 C#6 0.75 42;
+20.00 A#6 0.5 42;
+28.00 C6 8 42;
+30.00 A#6 2 42;
+31.00 A#6 1 42;
+32.00 A#6 1 42;
+32.75 A#6 0.75 42;
+33.50 G#6 0.75 42;
+34.00 G6 0.5 42;
+38.00 G6 4 42;
+38.75 G#6 0.75 42;
+39.50 G6 0.75 42;
+40.00 F6 0.5 42;
+43.00 C6 3 42;
+43.25 C#6 0.25 42;
+43.50 C#6 1.5 42;
+45.00 C6 0.25 42;
+45.25 C#6 0.25 42;
+45.50 C6 6 42;
+"""
+async def main():
+    alarmtone = MusicPlayer(pins=[PINBOARD],debug=True)
+    await player.play(song=FOUR_UNSPEAKABLES,bpm=118)
 
 #wifi connect
 network_name = os.getenv("CIRCUITPY_WIFI_SSID")
@@ -590,6 +630,7 @@ while True:
     elif current_state == ActivityState.STATE_ALARM:
         frames = alarm_frame
         folder = alarm_dir
+        asyncio.run(main())
 
 
     filename = folder + "/" + frames[frame_index]
