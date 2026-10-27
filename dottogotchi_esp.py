@@ -25,6 +25,7 @@ displayio.release_displays()
 #directories
 root_path = '/dottos'
 folders = ['wake','write','read','read_loop']
+
 write_dir = root_path + "/write"
 write_frame = os.listdir(write_dir)
 read_dir = root_path + "/read"
@@ -35,8 +36,8 @@ idle_dir = root_path + "/idle"
 idle_frame=os.listdir(idle_dir)
 wake_dir = root_path + "/wake"
 wake_frame=os.listdir(wake_dir)
-alarm_dir = root_path + "/wake"
-alarm_frame=os.listdir(wake_dir)
+alarm_dir = root_path + "/alarm"
+alarm_frame=os.listdir(alarm_dir)
 
 #frame sorting
 def numerical_sort_key(write_dir):
@@ -55,8 +56,7 @@ def numerical_sort_key(alarm_dir):
 alarm_sort = sorted(alarm_frame, key=numerical_sort_key)
 
 #music
-FOUR_UNSPEAKABLES=
-"""
+FOUR_UNSPEAKABLES="""
 2.00 C#6 2 42;
 3.00 C#6 1 42;
 4.00 C#6 1 42;
@@ -88,9 +88,18 @@ FOUR_UNSPEAKABLES=
 45.25 C#6 0.25 42;
 45.50 C6 6 42;
 """
-async def main():
-    alarmtone = MusicPlayer(pins=[PINBOARD],debug=True)
-    await player.play(song=FOUR_UNSPEAKABLES,bpm=118)
+alarm_player = MusicPlayer([board.D10], debug=True)
+alarm_task = None
+async def play_alarm():
+    try:
+        while current_state == ActivityState.STATE_ALARM:
+            await alarm_player.play(
+                song=FOUR_UNSPEAKABLES,
+                bpm=472,
+            )
+            await asyncio.sleep(0)
+    except asyncio.CancelledError:
+        raise
 
 #wifi connect
 network_name = os.getenv("CIRCUITPY_WIFI_SSID")
@@ -461,35 +470,42 @@ def root(request):
       selectMenu[2].appendChild(option);
     });
     /* -----------------------------
-       Update clock
+   Update clock and check alarm
     ----------------------------- */
+    let alarmFired = false;
+
     function updateClock() {
       const date = new Date();
+
       let h = date.getHours();
       const m = date.getMinutes();
       const s = date.getSeconds();
-      let ampm = "AM";
-      if (h >= 12) {
-        ampm = "PM";
-      }
+
+      const ampm = h >= 12 ? "PM" : "AM";
+
       h = h % 12;
-      if (h === 0) {
-        h = 12;
-      }
-      const hour = h < 10 ? `0${h}` : h;
-      const minute = m < 10 ? `0${m}` : m;
-      const second = s < 10 ? `0${s}` : s;
-      const displayTime = `${hour}:${minute}:${second} ${ampm}`;
-      currentTime.textContent = displayTime;
-      /* Check alarm */
-      if (alarmTime === `${hour}:${minute} ${ampm}`) {
-        setState('alarmed'); 
-        if (ringtone.paused) {
-          ringtone.currentTime = 0;
-          ringtone.play().catch(() => {});
-        }
+      if (h === 0) h = 12;
+
+      const hour = String(h).padStart(2, "0");
+      const minute = String(m).padStart(2, "0");
+      const second = String(s).padStart(2, "0");
+
+      currentTime.textContent =
+        `${hour}:${minute}:${second} ${ampm}`;
+
+      // Fire once, rather than POSTing every second
+  // during the entire matching minute.
+      if (
+        alarmTime &&
+        !alarmFired &&
+        `${hour}:${minute} ${ampm}` === alarmTime
+      ) {
+        alarmFired = true;
+        setState("alarmed");
+        setAlarmBtn.textContent = "Stop Alarm";
       }
     }
+
     updateClock();
     setInterval(updateClock, 1000);
 
@@ -497,34 +513,43 @@ def root(request):
        Set / Clear alarm
     ----------------------------- */
     function setAlarm() {
-      /* Clear existing alarm */
       if (isAlarmSet) {
+        // Clear the pending alarm or silence the alarm state.
         alarmTime = "";
-        ringtone.pause();
-        ringtone.currentTime = 0;
+        alarmFired = false;
+        isAlarmSet = false;
+
         content.classList.remove("disable");
         setAlarmBtn.textContent = "Set Alarm";
-        isAlarmSet = false;
+
+        setState("idling");
         return;
       }
+
       const hour = selectMenu[0].value;
       const minute = selectMenu[1].value;
       const ampm = selectMenu[2].value;
 
-      /* Validate */
       if (
         hour === "Hour" ||
         minute === "Minute" ||
         ampm === "AM/PM"
       ) {
-        alert("Please, select a valid time to set Alarm!");
+        alert("Please select a valid alarm time!");
         return;
       }
+
       alarmTime = `${hour}:${minute} ${ampm}`;
+      alarmFired = false;
       isAlarmSet = true;
+
       content.classList.add("disable");
       setAlarmBtn.textContent = "Clear Alarm";
+
+      // Handle an alarm set for the current minute.
+      updateClock();
     }
+
     setAlarmBtn.addEventListener("click", setAlarm);
   </script>
 </body>
@@ -545,39 +570,62 @@ def state(request):
     global beat_phases
     global read_loop_mode
     
-    print("POST HIT")
-    
-    body = request.body.decode("utf-8")
-    state_str = parse_state_native(body)
-    frame_index = 0
-    read_loop_mode = False
-
-
-    if state_str:
+    try:
+        data = request.json()
+        if not isinstance(data, dict):
+            raise ValueError("Expected JSON object")
+        state_str = data.get("state", "")
         new_state = string_to_state(state_str)
+
+        if state_str not in (
+            "writing", "reading", "idling", "alarmed"
+        ):
+            return Response(
+                request,
+                json.dumps({
+                    "status": "error",
+                    "message": "Invalid state",
+                    "state": state_to_string(current_state),
+                }),
+                content_type="application/json",
+            )
 
         if new_state != current_state:
             previous_state = current_state
             current_state = new_state
-
-            # Reset animation
+            state_change_time = time.monotonic()
+            state_just_changed = True
             frame_index = 0
+            oneshot_played = False
+            post_index = 0
+            read_loop_mode = False
 
-            # Reset read intro animation
-            if current_state == ActivityState.STATE_READ:
-                read_loop_mode = False
+            print(
+                "State changed:",
+                state_to_string(previous_state),
+                "->",
+                state_to_string(current_state),
+            )
 
-            print("Changed state to:", state_str)
-
-    return Response(
-   request,
-    json.dumps({
-        "state": state_to_string(current_state),
-        "status": "ok"
-    }),
-    content_type="application/json",
-)
-
+        return Response(
+            request,
+            json.dumps({
+                "status": "ok",
+                "state": state_to_string(current_state),
+            }),
+            content_type="application/json",
+        )
+    except Exception as e:
+            print("State request error:", e)
+            return Response(
+                request,
+                json.dumps({
+                    "status": "error",
+                    "message": "Invalid request",
+                }),
+                content_type="application/json",
+        )
+        
 @server.route("/status", methods=["GET"])
 def handle_get_status(request):
     uptime = int(time.time() - start_time_seconds)
@@ -592,7 +640,6 @@ def handle_get_status(request):
     }),
     content_type="application/json",
 )
-
 
 bootframes = wake_frame
 bootfolder = wake_dir
@@ -611,53 +658,73 @@ for bootfilename in wake_frame:
         del odb
         gc.collect()
 
-while True:
-    server.poll()
-    if current_state == ActivityState.STATE_WRITE:
-        frames = write_sort
-        folder = write_dir
-    elif current_state == ActivityState.STATE_READ:
-        if read_loop_mode:
-            frames = readl_frame
-            folder = readl_dir
-        else:
-            frames = read_frame
-            folder = read_dir
-    elif current_state == ActivityState.STATE_IDLE:
-        frames = idle_frame
-        folder = idle_dir
-    
-    elif current_state == ActivityState.STATE_ALARM:
-        frames = alarm_frame
-        folder = alarm_dir
-        asyncio.run(main())
+async def device_loop():
+    global frame_index
+    global read_loop_mode
+    global alarm_task
 
-
-    filename = folder + "/" + frames[frame_index]
-
-    with open(filename, "rb") as f:
-        odb = displayio.OnDiskBitmap(f)
-        bitmap = displayio.TileGrid(
-            odb,
-            pixel_shader=odb.pixel_shader,
-        )
-
-        screen.append(bitmap)
-        display.refresh(target_frames_per_second=20)
-        screen.pop()
-        del bitmap
-        del odb
-        gc.collect()
-
-    # Update frame index
-    if current_state == ActivityState.STATE_READ:
-        if not read_loop_mode:
-            if frame_index == len(read_frame) - 1:
-                read_loop_mode = True
-                frame_index = 0
+    while True:
+        server.poll()
+        if current_state == ActivityState.STATE_ALARM:
+            if alarm_task is None:
+                alarm_task = asyncio.create_task(play_alarm())
+        elif alarm_task is not None:
+            alarm_task.cancel()
+            alarm_task = None
+        
+        if current_state == ActivityState.STATE_WRITE:
+            frames = write_sort
+            folder = write_dir
+        elif current_state == ActivityState.STATE_READ:
+            if read_loop_mode:
+                frames = readl_frame
+                folder = readl_dir
             else:
-                frame_index += 1
-        else:
-            frame_index = (frame_index + 1) % len(readl_frame)
-    else:
-        frame_index = (frame_index + 1) % len(frames)
+                frames = read_frame
+                folder = read_dir
+
+        elif current_state == ActivityState.STATE_ALARM:
+            frames = alarm_frame
+            folder = alarm_dir
+            
+        elif current_state == ActivityState.STATE_IDLE:
+            frames = idle_frame
+            folder = idle_dir
+        
+        if frames:
+            frame_index %= len(frames)
+            filename = folder + "/" + frames[frame_index]
+            try:
+                with open(filename, "rb") as f:
+                    odb = displayio.OnDiskBitmap(f)
+                    bitmap = displayio.TileGrid(
+                        odb,
+                        pixel_shader=odb.pixel_shader,
+                    )
+                    screen.append(bitmap)
+                    display.refresh(
+                        target_frames_per_second=20
+                    )
+                    screen.pop()
+                    del bitmap
+                    del odb
+            except OSError as e:
+                    print("Animation frame error:", e)
+      
+            if current_state == ActivityState.STATE_READ:
+                if not read_loop_mode:
+                    if frame_index == len(read_frame) - 1:
+                        read_loop_mode = True
+                        frame_index = 0
+                    else:
+                        frame_index += 1
+                else:
+                    frame_index = (frame_index + 1) % len(readl_frame)
+            else:
+                frame_index = (frame_index + 1) % len(frames)
+
+        gc.collect()
+        await asyncio.sleep(0)
+
+asyncio.run(device_loop())
+
